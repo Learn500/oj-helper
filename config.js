@@ -9,5 +9,5 @@
  *   改完保存,刷新页面即可生效。
  */
 window.APP_CONFIG = {
-  apiBase: "https://forecast-paintball-flavor-recipes.trycloudflare.com"
+  apiBase: "https://christ-social-reed-exam.trycloudflare.com"
 };
