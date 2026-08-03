@@ -9,5 +9,5 @@
  *   改完保存,刷新页面即可生效。
  */
 window.APP_CONFIG = {
-  apiBase: "http://192.168.1.100:8080"
+  apiBase: "https://forecast-paintball-flavor-recipes.trycloudflare.com"
 };
