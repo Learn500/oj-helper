@@ -322,7 +322,7 @@
 
   function renderRecord(r) {
     var host = $("#tab-submit");
-    var cls = { 2: "ac", 3: "wa", 4: "re", 5: "ce", 6: "tle", 7: "mle" }[r.status] || "pending";
+    var cls = { 2: "ac", 12: "ac", 3: "wa", 4: "re", 5: "ce", 6: "tle", 7: "mle" }[r.status] || "pending";
     var html = '<div class="rec-header">Record #' + r.rid +
       ' <span class="verdict ' + cls + '">' + esc(r.status_text) + "</span>" +
       (r.score !== undefined && r.finished ? " · 得分 " + r.score : "") +
