@@ -103,6 +103,27 @@
     return "<h2>" + title + "</h2>" + absUrls(md);
   }
 
+  // 兜底:把未渲染的 $...$ 去掉美元符号(忽略 pre/code 代码块),至少显示干净文本
+  function stripDollarSigns(root) {
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode: function (n) {
+        var p = n.parentNode;
+        while (p) {
+          if (p.nodeName === "PRE" || p.nodeName === "CODE") return NodeFilter.FILTER_REJECT;
+          p = p.parentNode;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    var nodes = [], t;
+    while ((t = walker.nextNode())) nodes.push(t);
+    nodes.forEach(function (n) {
+      if (n.nodeValue.indexOf("$") >= 0) {
+        n.nodeValue = n.nodeValue.replace(/\$([^$\n]*)\$/g, "$1").replace(/\$/g, "");
+      }
+    });
+  }
+
   function renderProblem(p) {
     var body = $("#problemBody");
     var diff = { 0: "暂无评定", 1: "入门", 2: "普及-", 3: "普及/提高-",
@@ -116,7 +137,7 @@
       section("输入格式", p.inputFormat) +
       section("输出格式", p.outputFormat) +
       section("说明 / 提示", p.hint);
-    // 渲染数学公式
+    // 渲染数学公式(和洛谷一致,$N$ 显示为数学斜体 N)
     if (window.renderMathInElement) {
       try {
         renderMathInElement(body, {
@@ -131,6 +152,8 @@
         });
       } catch (e) { log("公式渲染错误: " + e.message); }
     }
+    // 兜底:仍未渲染的 $...$ 去掉 $,至少显示干净文本
+    stripDollarSigns(body);
     // 样例
     var sl = $("#sampleList");
     sl.innerHTML = "";
@@ -200,14 +223,14 @@
         r.results.length + "</span></div>";
       r.results.forEach(function (c) {
         var cls = c.status === "PASS" ? "pass" : c.status === "FAIL" ? "fail" : "tle";
+        var verdict = c.status === "PASS" ? "通过 ✓" :
+                      c.status === "FAIL" ? "答案错误 ✗" :
+                      c.status === "TLE" ? "运行超时 ⏱" : "运行时错误 ⚠";
         html += '<div class="case ' + cls + '"><div class="case-head"><span class="badge ' + cls + '">' +
-          esc(c.status) + "</span><span>样例 " + c.index + " · " + c.time_ms + " ms</span></div>" +
+          esc(verdict) + "</span><span>样例 " + c.index + " · " + c.time_ms + " ms</span></div>" +
           '<div class="case-body"><div><div class="lbl">输入</div><pre>' + esc(c.input || "") +
-          "</pre></div><div><div class=\"lbl\">期望输出</div><pre>" + esc(c.expected || "") +
           "</pre></div><div><div class=\"lbl\">实际输出</div><pre>" + esc(c.actual || "") +
-          "</pre></div><div><div class=\"lbl\">判定</div><pre>" +
-          (c.status === "PASS" ? "与期望输出一致" : c.status === "FAIL" ? "与期望输出不同" :
-           c.status === "TLE" ? "运行超时" : "运行时错误") + "</pre></div></div>" +
+          "</pre></div></div>" +
           (c.stderr ? '<div class="stderr">' + esc(c.stderr) + "</div>" : "") + "</div>";
       });
       log("测试完成: 通过 " + passCount + "/" + r.results.length);
@@ -289,7 +312,18 @@
         State.submitting = false;
         $("#submitBtn").disabled = false;
         $("#submitBtn").textContent = "提交评测";
-        $("#tab-submit").innerHTML = '<p class="rec-msg err">提交失败: ' + esc(r.message) + "</p>";
+        var msgHtml = '<p class="rec-msg err">提交失败: ' + esc(r.message) + "</p>";
+        if (r.need_captcha) {
+          msgHtml += '<div class="captcha-tip">' +
+            "<p>洛谷要求<b>人机验证</b>。请点击下方按钮,在打开的洛谷页面<b>手动提交一次</b>完成验证," +
+            "几分钟后再回来用本工具提交。</p>" +
+            '<button id="openLuoguBtn" class="btn primary">打开洛谷题目页完成验证</button></div>';
+        }
+        $("#tab-submit").innerHTML = msgHtml;
+        var ob = document.getElementById("openLuoguBtn");
+        if (ob) ob.addEventListener("click", function () {
+          window.open("https://www.luogu.com.cn/problem/" + State.pid, "_blank");
+        });
         log("提交失败: " + r.message);
         return;
       }
@@ -393,6 +427,7 @@
     $("#runSamplesBtn").addEventListener("click", runTest);
     $("#runBtn").addEventListener("click", runCustom);
     bindSampleResize();
+    bindResultResize();
     $("#submitBtn").addEventListener("click", submit);
     document.querySelectorAll(".tab").forEach(function (t) {
       t.addEventListener("click", function () { showTab(t.dataset.tab); });
@@ -462,6 +497,33 @@
       var max = panel.parentElement.getBoundingClientRect().height * 0.65;
       h = Math.max(120, Math.min(h, max));
       panel.style.height = h + "px";
+    });
+    document.addEventListener("mouseup", function () {
+      dragging = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    });
+  }
+
+  // 结果区(编辑器下方)高度拖拽
+  function bindResultResize() {
+    var bar = $("#resultResize"), panel = $(".result-tabs");
+    var startY = 0, startH = 0, dragging = false;
+    bar.addEventListener("mousedown", function (e) {
+      dragging = true;
+      startY = e.clientY;
+      startH = panel.getBoundingClientRect().height;
+      document.body.style.cursor = "ns-resize";
+      document.body.style.userSelect = "none";
+      e.preventDefault();
+    });
+    document.addEventListener("mousemove", function (e) {
+      if (!dragging) return;
+      var h = startH + (startY - e.clientY);   // 向上拖增大
+      var max = panel.parentElement.getBoundingClientRect().height * 0.75;
+      h = Math.max(120, Math.min(h, max));
+      panel.style.height = h + "px";
+      panel.style.flex = "0 0 auto";
     });
     document.addEventListener("mouseup", function () {
       dragging = false;
