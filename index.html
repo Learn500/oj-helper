@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OJ Helper - 本地刷题助手</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">OJ<span>Helper</span></div>
+  <div class="platform-box">
+    <label>平台</label>
+    <select id="platformSel">
+      <option value="luogu">洛谷 Luogu</option>
+      <!-- 预留: <option value="codeforces">Codeforces</option> -->
+    </select>
+  </div>
+  <div class="problem-box">
+    <input id="pidInput" placeholder="题号,如 P1000 / B2001" spellcheck="false">
+    <button id="loadBtn" class="btn primary">加载题目</button>
+  </div>
+  <div class="spacer"></div>
+  <div class="lang-box">
+    <select id="langSel" title="提交语言">
+      <option>C++17</option><option>C++20</option><option>C++14</option>
+      <option>C++11</option><option>C++98</option><option>C</option>
+    </select>
+    <label class="o2"><input type="checkbox" id="o2Box" checked> O2</label>
+  </div>
+  <button id="testBtn" class="btn accent" title="编译并对样例逐一测试">一键测试样例</button>
+  <button id="submitBtn" class="btn primary" title="提交到洛谷">提交评测</button>
+  <div id="userArea" class="user-area">
+    <div id="avatarBox" class="avatar hidden"><img id="avatarImg" alt="头像"></div>
+    <span id="userName" class="user-name hidden"></span>
+    <button id="loginBtn" class="btn ghost">登录</button>
+  </div>
+  <button id="settingsBtn" class="btn icon" title="设置">⚙</button>
+</header>
+
+<main class="layout">
+  <!-- 左:题目 -->
+  <section class="panel problem-panel" id="problemPanel">
+    <div class="panel-head">
+      <span id="problemTitle" class="problem-title">未加载题目</span>
+      <span id="problemMeta" class="problem-meta"></span>
+    </div>
+    <div id="problemBody" class="problem-body">
+      <p class="placeholder">在顶部输入题号(如 P1000)并点击「加载题目」。</p>
+    </div>
+    <div id="samplePanel" class="sample-panel hidden">
+      <div id="sampleResize" class="resize-bar" title="拖动调整样例区高度"></div>
+      <div class="panel-head"><span>样例</span>
+        <button id="runSamplesBtn" class="btn small accent">一键测试样例</button>
+      </div>
+      <div id="sampleList"></div>
+    </div>
+  </section>
+
+  <!-- 右:编辑器 + 结果 -->
+  <section class="panel editor-panel">
+    <div id="editorHost" class="editor-host"></div>
+    <div class="result-tabs">
+      <div class="tabs">
+        <button class="tab active" data-tab="test">测试结果</button>
+        <button class="tab" data-tab="run">自定义运行</button>
+        <button class="tab" data-tab="submit">提交记录</button>
+      </div>
+      <div class="tab-body">
+        <div id="tab-test" class="tab-pane active"></div>
+        <div id="tab-run" class="tab-pane">
+          <div class="run-box">
+            <div class="run-head">
+              <span class="tip">自定义输入(作为程序 stdin,请自行与期望输出比对)</span>
+              <button id="runBtn" class="btn small accent">运行</button>
+            </div>
+            <textarea id="runInput" rows="6" placeholder="输入程序要读取的数据,例如:&#10;20 30"></textarea>
+            <div id="runOutput" class="run-output hidden">
+              <div class="lbl">输出(stdout)</div>
+              <pre id="runStdout" class="run-pre"></pre>
+              <div class="lbl">stderr / 运行信息</div>
+              <pre id="runStderr" class="run-pre err"></pre>
+            </div>
+          </div>
+        </div>
+        <div id="tab-submit" class="tab-pane"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- 登录弹窗 -->
+<div id="loginModal" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-head">登录洛谷 <button class="modal-close" data-close="loginModal">×</button></div>
+    <div class="modal-body">
+      <p class="tip">方式一:在浏览器中登录洛谷后,把 Cookie 粘贴到这里(最可靠,推荐)。</p>
+      <textarea id="cookieInput" rows="4" placeholder="粘贴 Cookie,例如 _uid=123; __client_id=abc..."></textarea>
+      <div class="row">
+        <button id="cookieLoginBtn" class="btn primary">用 Cookie 登录</button>
+        <button id="fetchCookieBtn" class="btn ghost" title="打开洛谷,登录后按 F12 复制 Cookie">如何获取 Cookie?</button>
+      </div>
+      <hr>
+      <p class="tip">方式二:直接用洛谷账号密码登录(可能遇到验证码而失败)。</p>
+      <div class="row">
+        <input id="loginUser" placeholder="用户名">
+        <input id="loginPass" type="password" placeholder="密码">
+        <button id="pwdLoginBtn" class="btn">账号登录</button>
+      </div>
+      <div id="loginMsg" class="msg"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 设置弹窗 -->
+<div id="settingsModal" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-head">设置 <button class="modal-close" data-close="settingsModal">×</button></div>
+    <div class="modal-body">
+      <h4>编译</h4>
+      <div class="row">
+        <label>g++ 路径(留空自动查找)</label>
+        <input id="cfgGpp" placeholder="如 D:\Program Files\mingw64\bin\g++.exe">
+      </div>
+      <div class="row">
+        <label>编译参数</label>
+        <input id="cfgCppFlags" placeholder="-O2 -Wall">
+      </div>
+      <div class="row">
+        <label>单样例运行超时(秒)</label>
+        <input id="cfgTimeout" type="number" min="1" value="10">
+      </div>
+      <div class="row">
+        <label class="check-label"><input type="checkbox" id="cfgConsole"> 运行程序时弹出 cmd 窗口(可随时关闭)</label>
+      </div>
+      <h4>提交语言映射(洛谷 lang ID)</h4>
+      <div class="row"><label>C++17</label><input id="cfgLangCpp17" type="number" value="3"></div>
+      <div class="row"><label>C++20</label><input id="cfgLangCpp20" type="number" value="4"></div>
+      <div class="row">
+        <button id="saveSettingsBtn" class="btn primary">保存设置</button>
+        <button id="resetCookieBtn" class="btn ghost danger-text">清除洛谷登录</button>
+      </div>
+      <div id="settingsMsg" class="msg"></div>
+    </div>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.34.0/min/vs/loader.js"></script>
+<script src="editor.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
